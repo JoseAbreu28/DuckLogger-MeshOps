@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DuckLogger</title>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --btn-bg: #101720;
+            --border: #1f2a36;
+            --text: #e8eef6;
+            --green: #20c56b;
+            --red: #ff5a6a;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Main Input Area */
+        .container {
+            width: 90%;
+            max-width: 600px;
+            margin-top: 10vh;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* IDE Editor Styles */
+        .editor-container {
+            display: flex;
+            width: 100%;
+            height: 300px;
+            border: 2px solid var(--green);
+            border-radius: 8px;
+            background: var(--btn-bg);
+            overflow: hidden;
+        }
+        .line-numbers {
+            min-width: 25px; /* Thinner sidebar */
+            padding: 10px 5px;
+            background: rgba(32, 197, 107, 0.08);
+            color: var(--green);
+            text-align: right;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            user-select: none;
+            overflow: hidden;
+            white-space: pre; /* Fixes the numbers appearing side-by-side */
+            border-right: 1px solid var(--border);
+        }
+        #ducky-script {
+            flex-grow: 1;
+            height: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            white-space: pre; 
+            overflow: auto;
+        }
+
+        /* Bottom Button Group */
+        .btn-group {
+            position: fixed;
+            bottom: 30px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .action-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--btn-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            outline: none;
+        }
+        .action-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+        .btn-green { color: var(--green); }
+        .btn-green svg { stroke: var(--green); }
+
+        /* Shared Popups (Keyboard & System) */
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(11, 15, 20, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 50px;
+            z-index: 100;
+        }
+        .modal {
+            width: 90%;
+            max-width: 400px;
+            background: var(--btn-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--green);
+            font-weight: bold;
+        }
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .mod-row { display: flex; gap: 8px; justify-content: space-between; }
+        .mod-btn {
+            flex: 1;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.1s, color 0.1s;
+        }
+        .mod-btn.active {
+            background: var(--green);
+            color: var(--bg);
+            border-color: var(--green);
+        }
+        .modal-input {
+            width: 100%;
+            background: transparent;
+            border: 1px solid var(--green);
+            color: var(--text);
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            outline: none;
+        }
+        .modal-input option { background: var(--bg); color: var(--text); }
+
+        /* Connection Dot */
+        .dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--red);
+            margin-left: 8px;
+            transition: background 0.3s;
+        }
+
+        /* Toast Notification */
+        #toast {
+            position: fixed;
+            top: 20px;
+            background: var(--green);
+            color: var(--bg);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s, background-color 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+            text-align: center;
+        }
+        #toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+
+    <!-- Notification Toast -->
+    <div id="toast">Success!</div>
+
+    <div class="container">
+        <div class="editor-container">
+            <div id="line-numbers" class="line-numbers">1</div>
+            <textarea id="ducky-script" placeholder="DuckyScript..." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="none" wrap="off"></textarea>
+        </div>
+        <button class="action-btn btn-green" style="align-self: flex-end;" onclick="injectScript()" title="Inject DuckyScript payload">Inject</button>
+    </div>
+
+    <div class="btn-group">
+        <button class="action-btn btn-green" onclick="openSys()" title="Open System Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7Z M8 9a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V9Z M8 2v2 M12 2v2 M16 2v2 M8 20v2 M12 20v2 M16 20v2 M2 8h2 M2 12h2 M2 16h2 M20 8h2 M20 12h2 M20 16h2"/>
+            </svg>
+            System
+        </button>
+        <button class="action-btn btn-green" onclick="window.location.href='/log'" title="Download Keystroke Logs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v10 M8 11l4 4 4-4 M4 17v2h16v-2"/>
+            </svg>
+            Download
+        </button>
+        <button class="action-btn btn-green" onclick="openKbd()" title="Open Live Remote Keyboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18v12H3z M6 10h1 M9 10h1 M12 10h1 M15 10h1 M18 10h1 M6 13h8 M15 13h3"/>
+            </svg>
+            Keyboard
+        </button>
+    </div>
+
+    <!-- System Popup -->
+    <div id="sys-overlay" class="overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <span>System</span>
+                <button class="close-btn" onclick="closeSys()" title="Close System Settings">✕</button>
+            </div>
+            
+            <select id="sys-mode" class="modal-input" title="Network Mode">
+                <option value="ap">Create Hotspot (AP)</option>
+                <option value="wifi">Connect to WiFi</option>
+            </select>
+            <input type="text" id="sys-ssid" class="modal-input" placeholder="SSID" autocomplete="off" spellcheck="false" title="Network SSID">
+            <input type="text" id="sys-pass" class="modal-input" placeholder="Password (optional)" autocomplete="off" spellcheck="false" title="Network Password">
+            
+            <div class="mod-row">
+                <button class="mod-btn" onclick="saveSys(this)" title="Save Settings">Save</button>
+                <button class="mod-btn" style="color: var(--red); border-color: var(--red);" onclick="deleteLog()" title="Delete Log File">Delete Logs</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Popup -->
+    <div id="kbd-overlay" class="overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <span style="display: flex; align-items: center;">Live Keyboard <div id="ws-dot" class="dot" title="Disconnected"></div></span>
+                <button class="close-btn" onclick="closeKbd()" title="Close Keyboard">✕</button>
+            </div>
+            <div class="mod-row">
+                <button class="mod-btn" onclick="toggleMod(this, 'CTRL')" title="Hold CTRL">CTRL</button>
+                <button class="mod-btn" onclick="toggleMod(this, 'ALT')" title="Hold ALT">ALT</button>
+                <button class="mod-btn" onclick="toggleMod(this, 'SHIFT')" title="Hold SHIFT">SHIFT</button>
+                <button class="mod-btn" onclick="toggleMod(this, 'WIN')" title="Hold WIN">WIN</button>
+            </div>
+            
+            <input type="text" id="live-input" class="modal-input" placeholder="Tap to trigger keyboard..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" title="Type here to send keystrokes">
+            
+            <div class="mod-row">
+                <button class="mod-btn" onclick="sendQuickKey(this, 'ESC')" title="Send ESC">ESC</button>
+                <button class="mod-btn" onclick="sendQuickKey(this, 'TAB')" title="Send TAB">TAB</button>
+                <button class="mod-btn" onclick="sendQuickKey(this, 'WIN')" title="Send WIN">WIN</button>
+                <button class="mod-btn" onclick="sendQuickKey(this, 'CAPS')" title="Send CAPS LOCK">CAPS</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Editor Line Numbers Logic
+        const duckyScript = document.getElementById('ducky-script');
+        const lineNumbers = document.getElementById('line-numbers');
+        let currentLineCount = 1;
+
+        function updateLineNumbers() {
+            const lines = duckyScript.value.split('\n').length;
+            if (lines !== currentLineCount) {
+                let nums = '';
+                for (let i = 1; i <= lines; i++) {
+                    nums += i + '\n';
+                }
+                lineNumbers.textContent = nums;
+                currentLineCount = lines;
+            }
+        }
+
+        duckyScript.addEventListener('input', updateLineNumbers);
+        duckyScript.addEventListener('scroll', () => {
+            lineNumbers.scrollTop = duckyScript.scrollTop;
+        });
+
+        const TOKEN_KEY = 'meshops-api-token';
+
+        function getToken() {
+            let token = localStorage.getItem(TOKEN_KEY) || '';
+            if (!token) {
+                token = prompt('API token') || '';
+                if (token) localStorage.setItem(TOKEN_KEY, token);
+            }
+            return token;
+        }
+
+        function authHeaders(extra) {
+            return Object.assign(
+                {'Authorization': 'Bearer ' + getToken()},
+                extra || {}
+            );
+        }
+
+        function authFailed(res) {
+            if (res.status === 401) {
+                localStorage.removeItem(TOKEN_KEY);
+                showToast('Unauthorized: enter a valid API token', true);
+            }
+            return res;
+        }
+
+        // Feedback Toast Logic
+        let toastTimeout;
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.style.background = isError ? 'var(--red)' : 'var(--green)';
+            toast.classList.add('show');
+            
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // System API Calls
+        function openSys() {
+            document.getElementById('sys-overlay').style.display = 'flex';
+            fetch('/settings', { headers: authHeaders() })
+                .then(authFailed)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('sys-mode').value = data.mode || 'ap';
+                    document.getElementById('sys-ssid').value = data.ssid || '';
+                    document.getElementById('sys-pass').value = data.password || '';
+                }).catch(err => console.error("Failed to load settings", err));
+        }
+
+        function closeSys() {
+            document.getElementById('sys-overlay').style.display = 'none';
+        }
+
+        function saveSys(btn) {
+            const payload = {
+                mode: document.getElementById('sys-mode').value,
+                ssid: document.getElementById('sys-ssid').value,
+                password: document.getElementById('sys-pass').value
+            };
+
+            fetch('/settings', {
+                method: 'POST',
+                headers: authHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify(payload)
+            }).then(authFailed).then(async res => {
+                const msg = await res.text();
+                btn.classList.add('active');
+                setTimeout(() => btn.classList.remove('active'), 150);
+                showToast(msg || (res.ok ? "Settings Saved!" : "Failed to save"), !res.ok);
+            }).catch(() => showToast("Error saving settings", true));
+        }
+
+        function deleteLog() {
+            if(confirm("Are you sure you want to permanently delete the log file?")) {
+                fetch('/log', { method: 'DELETE', headers: authHeaders() }).then(authFailed).then(async res => {
+                    const msg = await res.text();
+                    showToast(msg || (res.ok ? "Logs Deleted!" : "Failed to delete logs"), !res.ok);
+                }).catch(() => showToast("Error deleting logs", true));
+            }
+        }
+
+        // Action API Calls
+        function injectScript() {
+            const data = document.getElementById('ducky-script').value;
+            fetch('/script', { method: 'POST', headers: authHeaders(), body: data }).then(authFailed).then(async res => {
+                const msg = await res.text();
+                showToast(msg || (res.ok ? "Script Injected!" : "Injection Failed"), !res.ok);
+            }).catch(() => showToast("Error during injection", true));
+        }
+
+        // WebSocket & Keyboard Logic
+        let ws = null;
+        const activeMods = new Set();
+        const kbdOverlay = document.getElementById('kbd-overlay');
+        const liveInput = document.getElementById('live-input');
+        const wsDot = document.getElementById('ws-dot');
+
+        const keyMap = {
+            'Enter': 'ENTER', 'Escape': 'ESC', 'Backspace': 'BKSP',
+            'Tab': 'TAB', 'CapsLock': 'CAPS', 'Delete': 'DEL', 'Insert': 'INS',
+            'Home': 'HOME', 'End': 'END', 'PageUp': 'PGUP', 'PageDown': 'PGDN',
+            'ArrowRight': 'RIGHT', 'ArrowLeft': 'LEFT', 'ArrowDown': 'DOWN', 'ArrowUp': 'UP'
+        };
+
+        function openKbd() {
+            kbdOverlay.style.display = 'flex';
+            wsDot.style.background = 'var(--red)';
+            wsDot.title = 'Connecting...';
+            
+            const wsScheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            ws = new WebSocket(
+                wsScheme + window.location.host + '/kbd?token=' +
+                encodeURIComponent(getToken())
+            );
+            
+            ws.onopen = () => {
+                wsDot.style.background = 'var(--green)';
+                wsDot.title = 'Connected';
+            };
+            
+            ws.onclose = ws.onerror = () => {
+                wsDot.style.background = 'var(--red)';
+                wsDot.title = 'Disconnected';
+            };
+
+            liveInput.focus();
+        }
+
+        function closeKbd() {
+            kbdOverlay.style.display = 'none';
+            if(ws) ws.close();
+        }
+
+        function toggleMod(btn, mod) {
+            if (activeMods.has(mod)) {
+                activeMods.delete(mod);
+                btn.classList.remove('active');
+            } else {
+                activeMods.add(mod);
+                btn.classList.add('active');
+            }
+            liveInput.focus();
+        }
+
+        function sendQuickKey(btn, key) {
+            btn.classList.add('active');
+            setTimeout(() => btn.classList.remove('active'), 150);
+            sendPayload(key, null);
+            liveInput.focus();
+        }
+
+        function sendPayload(key, evt) {
+            let mods = [];
+            if ((evt && evt.ctrlKey) || activeMods.has('CTRL')) mods.push('CTRL');
+            if ((evt && evt.altKey) || activeMods.has('ALT')) mods.push('ALT');
+            if ((evt && evt.shiftKey) || activeMods.has('SHIFT')) mods.push('SHIFT');
+            if ((evt && evt.metaKey) || activeMods.has('WIN')) mods.push('WIN');
+
+            let msg = mods.length > 0 ? mods.join(' ') + ' ' + key : key;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(msg);
+            }
+        }
+
+        liveInput.addEventListener('keydown', (e) => {
+            if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
+            if (e.key.length > 1 && e.key !== 'Unidentified') {
+                e.preventDefault();
+                let key = keyMap[e.key] || e.key;
+                sendPayload(key, e);
+            }
+        });
+
+        liveInput.addEventListener('input', (e) => {
+            if (e.data) sendPayload(e.data === ' ' ? 'SPACE' : e.data, null); 
+            liveInput.value = '';
+        });
+    </script>
+</body>
+</html>

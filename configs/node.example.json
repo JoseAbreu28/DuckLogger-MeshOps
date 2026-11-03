@@ -1,0 +1,36 @@
+{
+  "device": {
+    "role": "node",
+    "id": "node-01",
+    "mesh_only": true,
+    "data_source": true,
+    "synthetic_telemetry": false,
+    "local_ui": false
+  },
+  "management": {
+    "enabled": false
+  },
+  "mesh": {
+    "enabled": true,
+    "transport": "espnow",
+    "network_id": "lab-mesh",
+    "gateway_id": "gateway-01",
+    "channel": 6,
+    "max_hops": 6,
+    "route_interval_ms": 2000,
+    "route_timeout_ms": 8000,
+    "route_failover_failures": 3,
+    "ack_timeout_ms": 800,
+    "max_retries": 3,
+    "queue_persist": false,
+    "queue_path": "mesh-outbox.json",
+    "telemetry_interval_ms": 10000,
+    "telemetry_batch": 1,
+    "max_pending": 128,
+    "duplicate_cache": 128,
+    "peer_key": "CHANGE_ME_16BYTE",
+    "peer_macs": {
+      "gateway-01": "02:00:00:00:00:01"
+    }
+  }
+}
