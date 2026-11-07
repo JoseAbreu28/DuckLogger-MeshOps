@@ -220,10 +220,10 @@ class EgressManager:
         for backend in self.backends.values():
             backend.enqueue(record)
 
-    def flush(self):
+    def flush(self, now_ms=None):
         for name, backend in self.backends.items():
             if name == "sendmy":
-                backend.flush_one()
+                backend.flush_due(now_ms)
             else:
                 backend.flush()
 
