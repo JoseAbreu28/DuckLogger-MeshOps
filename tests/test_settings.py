@@ -340,6 +340,26 @@ def test_valid_sendmy_uplink(tmp_path):
     assert settings.uplink_mesh is True
     assert settings.uplink_sendmy is True
     assert settings.sendmy_max_message_bytes == 180
+    assert settings.sendmy_batch_interval_ms == 60000
+    assert settings.sendmy_batch_size == 32
+
+
+def test_sendmy_rejects_invalid_batch_interval(tmp_path):
+    config = node_config()
+    config["uplink"] = {"mesh": True, "sendmy": True}
+    config["sendmy"] = {"enabled": True, "modem_id": "42424242",
+                        "batch_interval_ms": 500}
+    with pytest.raises(ValueError, match="batch_interval_ms"):
+        Settings(write_config(tmp_path, config))
+
+
+def test_sendmy_rejects_invalid_batch_size(tmp_path):
+    config = node_config()
+    config["uplink"] = {"mesh": True, "sendmy": True}
+    config["sendmy"] = {"enabled": True, "modem_id": "42424242",
+                        "batch_size": 0}
+    with pytest.raises(ValueError, match="batch_size"):
+        Settings(write_config(tmp_path, config))
 
 
 def test_gateway_runtime_rejects_direct_and_gateway_sendmy_conflict(tmp_path):
